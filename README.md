@@ -1,5 +1,5 @@
-# 1. Segmentation Z-projection and quantification area of Z-stack images
-This repository contains a Python script for quantifying the segmented area from Z-stack images in ND2 format, fluorescent images of sprouting endothelial cells in the Mimetas Organoplate.
+# 1. Segmentation, Z-Projection, and Area Quantification of Z-Stack Images
+This repository contains a Python script to perform Z-projection and segmentation of Z-stack images in ND2 format. It is optimized for fluorescence images of sprouting endothelial cells in the **Mimetas Organoplate**, and performs automated quantification of sprout area.
 
 # Requirements
 This script runs in a standard Python environment. You will need:
@@ -13,9 +13,25 @@ This script runs in a standard Python environment. You will need:
 
 # Input
 Set in the `input_directory` variable with Z-stack images in ND2 format.
+- Input files must be in **ND2 format**
+- Each file should be a **Z-stack** (multiple focal planes)
+- Only grayscale or single-channel stacks are supported
+  
+Example input structure:
+input_directory/
+├── WellA01.nd2
+├── WellB01.nd2
 
 # Output  
-Output is saved in input directory as `zprojections_final/`, containing:
-  - One binary mask image (`_mask.png`) per input file
-  - A `area_summary.csv` file summarizing areas in pixels
+The script automatically creates a subfolder:  
+`<input_directory>/zprojections_final/`, which contains:
+
+- One binary mask image (`*_mask.png`) per input file
+- A summary table `area_summary.csv` with segmented area in pixels
+
+Example output:
+zprojections_final/
+├── WellA01_mask.png
+├── WellB01_mask.png
+└── area_summary.csv
 
