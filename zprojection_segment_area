@@ -1,0 +1,73 @@
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from nd2reader import ND2Reader
+from skimage import filters, morphology, exposure, feature
+from skimage.filters import threshold_otsu
+from skimage.morphology import remove_small_holes, disk
+
+def process_nd2_file(file_path, output_dir):
+    base_name = os.path.splitext(os.path.basename(file_path))[0]
+    print(f"Processing: {base_name}")
+
+    try:
+        with ND2Reader(file_path) as nd2:
+            nd2.iter_axes = 'z'
+            nd2.bundle_axes = 'cyx' if 'c' in nd2.sizes else 'yx'
+            z_stack = np.array([frame for frame in nd2])
+    except Exception as e:
+        print(f"Error reading {file_path}: {e}")
+        return None
+
+    if z_stack.size == 0:
+        print("No Z-slices found.")
+        return None
+
+    max_proj = np.max(z_stack, axis=0)
+    max_proj = max_proj / max_proj.max()
+
+    stretched = exposure.rescale_intensity(max_proj)
+    clahe = exposure.equalize_adapthist(stretched, clip_limit=0.05)
+    clahe_smoothed = filters.gaussian(clahe, sigma=1)
+
+    otsu_val = threshold_otsu(clahe_smoothed)
+    adjusted_thresh = otsu_val * 0.8
+    otsu_mask = clahe_smoothed > adjusted_thresh
+
+    canny_edges = feature.canny(clahe_smoothed, sigma=3)
+    combined = otsu_mask | canny_edges
+
+    clean = morphology.remove_small_objects(combined, min_size=100)
+    closed = morphology.binary_closing(clean, disk(2))
+    dilated = morphology.dilation(closed, disk(1.5))
+    seed = morphology.erosion(dilated, disk(1))
+    final_mask = remove_small_holes(seed, area_threshold=200)
+
+    area = np.sum(final_mask)
+
+    out_path = os.path.join(output_dir, f"{base_name}_mask.png")
+    plt.imsave(out_path, final_mask.astype(np.uint8), cmap='gray')
+
+    print(f"Saved: {out_path} | Area: {area} px")
+    return {"filename": base_name, "area_px": area}
+
+def main(input_dir):
+    output_dir = os.path.join(input_dir, "zprojections_final")
+    os.makedirs(output_dir, exist_ok=True)
+
+    results = []
+    for file in os.listdir(input_dir):
+        if file.endswith(".nd2"):
+            res = process_nd2_file(os.path.join(input_dir, file), output_dir)
+            if res:
+                results.append(res)
+
+    if results:
+        df = pd.DataFrame(results)
+        df.to_csv(os.path.join(output_dir, "area_summary.csv"), index=False)
+        print(f"Summary saved to: {os.path.join(output_dir, 'area_summary.csv')}")
+
+if __name__ == "__main__":
+    input_directory = r"path\\to\\your\\input_directory"
+    main(input_directory)
